@@ -1,0 +1,170 @@
+"use client";
+
+import { createContext, useCallback, useState, useEffect } from "react";
+import type { ReactNode } from "react";
+import { useAuth as useClerkAuth, useUser } from "@clerk/nextjs";
+import { validateAuthConfig } from "@/lib/auth-config";
+
+export interface User {
+  id: string;
+  email: string;
+  label?: string;
+  role: string;
+  walletAddress?: string;
+  orgId?: string;
+  orgRole?: string;
+  authMethod: "clerk" | "api_key";
+  memberships?: Array<{
+    org: { id: string; name: string; slug: string; verified: boolean };
+    role: string;
+  }>;
+}
+
+interface AuthState {
+  token: string | null;
+  user: User | null;
+  isLoading: boolean;
+}
+
+interface AuthContextValue extends AuthState {
+  isAuthenticated: boolean;
+  signInWithApiKey: (apiKey: string) => Promise<{ ok: boolean; error?: string; user?: User }>;
+  signOut: () => void;
+  getToken: () => Promise<string | null>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+const API_KEY_KEY = "warden_api_key";
+const USER_KEY = "warden_user";
+
+function readStoredApiKey(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(API_KEY_KEY);
+}
+
+function readStoredUser(): User | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [apiKeyState, setApiKeyState] = useState<AuthState>(() => {
+    const key = readStoredApiKey();
+    const user = readStoredUser();
+    if (key && user?.authMethod === "api_key") {
+      return { token: key, user, isLoading: false };
+    }
+    return { token: null, user: null, isLoading: false };
+  });
+
+  // Validate auth configuration on mount
+  useEffect(() => {
+    const config = validateAuthConfig();
+    if (!config.isValid) {
+      console.error("Authentication configuration errors:", config.errors);
+    }
+    if (config.warnings.length > 0) {
+      console.warn("Authentication configuration warnings:", config.warnings);
+    }
+  }, []);
+
+  // Clerk hooks
+  const { isSignedIn: clerkSignedIn, getToken: getClerkToken } = useClerkAuth();
+  const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
+
+  // Derive the current user from Clerk or API key
+  const user: User | null = (() => {
+    // Clerk user takes precedence when signed in
+    if (clerkSignedIn && clerkUser) {
+      return {
+        id: clerkUser.id,
+        email: clerkUser.emailAddresses[0]?.emailAddress ?? "",
+        label: clerkUser.firstName ?? clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0],
+        role: "viewer",
+        authMethod: "clerk",
+      };
+    }
+    // Fall back to API key user
+    return apiKeyState.user;
+  })();
+
+  // Clear API key state when Clerk signs in
+  useEffect(() => {
+    if (clerkSignedIn && apiKeyState.token) {
+      // Clear API key state when user signs in with Clerk
+      localStorage.removeItem(API_KEY_KEY);
+      localStorage.removeItem(USER_KEY);
+      setApiKeyState({ token: null, user: null, isLoading: false });
+    }
+  }, [clerkSignedIn]);
+
+  const isAuthenticated = clerkSignedIn || !!apiKeyState.token;
+  const isLoading = !clerkLoaded || apiKeyState.isLoading;
+
+  const signInWithApiKey = useCallback(async (apiKey: string) => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    
+    try {
+      const res = await fetch(`${apiUrl}/auth/me`, {
+        headers: { "x-api-key": apiKey },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        return { ok: false, error: errorData.error || errorData.message || "Invalid API key" };
+      }
+
+      const profile = await res.json();
+      const newUser: User = {
+        id: profile.id,
+        email: profile.email ?? profile.label,
+        label: profile.label,
+        role: profile.role ?? "viewer",
+        walletAddress: profile.walletAddress,
+        authMethod: "api_key",
+      };
+
+      localStorage.setItem(API_KEY_KEY, apiKey);
+      localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+      setApiKeyState({ token: apiKey, user: newUser, isLoading: false });
+      return { ok: true, user: newUser };
+    } catch (error) {
+      console.error("API key sign-in error:", error);
+      return { ok: false, error: "Network error. Please check your connection." };
+    }
+  }, []);
+
+  const signOut = useCallback(() => {
+    localStorage.removeItem(API_KEY_KEY);
+    localStorage.removeItem(USER_KEY);
+    setApiKeyState({ token: null, user: null, isLoading: false });
+    // Note: Clerk sign-out is handled by the layout component
+  }, []);
+
+  const getToken = useCallback(async (): Promise<string | null> => {
+    // Clerk token takes precedence
+    if (clerkSignedIn && getClerkToken) {
+      try {
+        const token = await getClerkToken();
+        return token;
+      } catch (error) {
+        console.error("Failed to get Clerk token:", error);
+        // Fall back to API key if Clerk token fails
+        return apiKeyState.token;
+      }
+    }
+    // Fall back to API key
+    return apiKeyState.token;
+  }, [clerkSignedIn, getClerkToken, apiKeyState.token]);
+
+  return (
+    <AuthContext.Provider value={{ token: apiKeyState.token, user, isLoading, isAuthenticated, signInWithApiKey, signOut, getToken }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export { AuthContext };

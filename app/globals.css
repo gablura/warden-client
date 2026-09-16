@@ -1,0 +1,389 @@
+@import "tailwindcss";
+
+/* ────────────────────────────────────────────────────────────────
+   WARDEN DESIGN TOKENS
+
+   Principle: color is reserved for state, not decoration. Buttons,
+   links, and structural chrome stay monochrome (foreground/surface/
+   border tokens only). The four status hues — success, warning,
+   danger, info — are the ONLY colors in the interface, and they
+   always mean the same thing everywhere they appear:
+
+     success  → approved
+     warning  → escalated / pending
+     danger   → blocked
+     info     → treasury / destination
+
+   `accent` exists purely for focus rings and links — never for
+   primary actions — so it can never be confused with a status color.
+   ──────────────────────────────────────────────────────────────── */
+
+@theme {
+  /* Surfaces */
+  --color-background: #f6f7f8;
+  --color-surface: #ffffff;
+  --color-surface-raised: #fcfcfd;
+  --color-border: #e4e6ea;
+  --color-border-strong: #c9cdd4;
+
+  /* Text — three levels of emphasis, one inverse for solid buttons */
+  --color-foreground: #14171c;
+  --color-foreground-secondary: #565c66;
+  --color-foreground-muted: #8a909b;
+  --color-foreground-inverse: #f6f7f8;
+
+  /* Accent — focus rings and links only, never primary actions */
+  --color-accent: #3d6fa6;
+  --color-accent-subtle: #e8eef4;
+
+  /* Status — the only colors that carry meaning */
+  --color-success: #157f5a;
+  --color-success-subtle: #e4f5ec;
+  --color-warning: #92620c;
+  --color-warning-subtle: #fbf0dd;
+  --color-danger: #b23a34;
+  --color-danger-subtle: #fbeae9;
+  --color-info: #0f6c6c;
+  --color-info-subtle: #e3f3f2;
+
+  /* Radius — deliberately different per component tier, not one
+     value applied to everything regardless of hierarchy */
+  --radius-sm: 0.375rem;  /* inputs, small controls */
+  --radius-md: 0.625rem;  /* cards, surfaces */
+  --radius-lg: 0.875rem;  /* panels, modals */
+  --radius-pill: 999px;   /* status pills only */
+
+  /* Shadow — reserved for transient overlays (menus, modals, toasts).
+     Structural surfaces (cards) use a hairline border instead, never
+     a shadow — that distinction is the point, not an oversight. */
+  --shadow-overlay: 0 8px 24px -8px rgb(20 23 28 / 0.18), 0 2px 8px -2px rgb(20 23 28 / 0.08);
+
+  /* Type */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.dark {
+  --color-background: #0b0d10;
+  --color-surface: #14171b;
+  --color-surface-raised: #1a1e23;
+  --color-border: #262b31;
+  --color-border-strong: #383f47;
+
+  --color-foreground: #e8eaed;
+  --color-foreground-secondary: #a7adb6;
+  --color-foreground-muted: #6e747d;
+  --color-foreground-inverse: #14171c;
+
+  --color-accent: #6fa8cc;
+  --color-accent-subtle: #16232c;
+
+  --color-success: #3fbe87;
+  --color-success-subtle: #12271f;
+  --color-warning: #d99a3c;
+  --color-warning-subtle: #2b2210;
+  --color-danger: #e2645d;
+  --color-danger-subtle: #2b1614;
+  --color-info: #3fb6b1;
+  --color-info-subtle: #102423;
+
+  --shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 0.5), 0 2px 8px -2px rgb(0 0 0 / 0.3);
+}
+
+/* Motion tokens — plain custom properties, not Tailwind utilities.
+   One shared timing system for the deliberate motion moments (the
+   ticker, the flow-graph pulses) so they never feel like scattered,
+   independently-tuned animations. */
+:root {
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ── Base ─────────────────────────────────────────────────────── */
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  ::selection {
+    background: var(--color-accent-subtle);
+    color: var(--color-foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* Thin, quiet scrollbar — reinforces the instrument-panel feel
+     without drawing attention to itself */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    border: 2px solid var(--color-background);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ── Reusable components ──────────────────────────────────────── */
+
+@layer components {
+  /* Structural surface — hairline border, no shadow */
+  .surface {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  /* Transient overlay — the one place shadow is allowed */
+  .surface-raised {
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
+  }
+
+  .divider {
+    border-top: 1px solid var(--color-border);
+  }
+
+  /* Numeric / address / hash display — tabular figures so columns
+     of amounts actually align */
+  .data-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Status pill — data-status carries the meaning, not a modifier
+     class, so it can never drift out of sync with the four states
+     used everywhere else (flow view, badges, tables) */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.625rem;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.5rem;
+  }
+  .status-badge[data-status="approved"] {
+    background: var(--color-success-subtle);
+    color: var(--color-success);
+  }
+  .status-badge[data-status="escalated"] {
+    background: var(--color-warning-subtle);
+    color: var(--color-warning);
+  }
+  .status-badge[data-status="blocked"] {
+    background: var(--color-danger-subtle);
+    color: var(--color-danger);
+  }
+  .status-badge[data-status="treasury"] {
+    background: var(--color-info-subtle);
+    color: var(--color-info);
+  }
+  .status-badge[data-status="neutral"] {
+    background: var(--color-border);
+    color: var(--color-foreground-secondary);
+  }
+
+  /* Buttons — monochrome by design. Primary is a solid inversion of
+     the surface/foreground pair, not a brand color, so it never
+     competes visually with a status badge sitting next to it. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background-color var(--duration-fast) var(--ease-standard),
+                border-color var(--duration-fast) var(--ease-standard);
+  }
+  .btn-primary {
+    background: var(--color-foreground);
+    color: var(--color-foreground-inverse);
+  }
+  .btn-primary:hover {
+    opacity: 0.88;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-foreground);
+    border: 1px solid var(--color-border);
+  }
+  .btn-ghost:hover {
+    border-color: var(--color-border-strong);
+  }
+  .btn-danger {
+    background: var(--color-danger-subtle);
+    color: var(--color-danger);
+  }
+  .btn-danger:hover {
+    background: var(--color-danger);
+    color: var(--color-foreground-inverse);
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .input {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-foreground);
+  }
+  .input:focus-visible {
+    border-color: var(--color-accent);
+  }
+
+  /* Links look like text until interacted with — deliberate, not an
+     oversight. A page full of blue links would compete with status
+     colors; underline-on-hover keeps the hierarchy intact. */
+  .link {
+    color: var(--color-foreground);
+    text-underline-offset: 3px;
+  }
+  .link:hover,
+  .link:focus-visible {
+    color: var(--color-accent);
+    text-decoration: underline;
+  }
+
+  /* Spacing utilities */
+  .space-y-2 > * + * {
+    margin-top: 0.5rem;
+  }
+
+  /* Layout utilities */
+  .flex {
+    display: flex;
+  }
+
+  .flex-col {
+    flex-direction: column;
+  }
+
+  .flex-1 {
+    flex: 1 1 0%;
+  }
+
+  .flex-wrap {
+    flex-wrap: wrap;
+  }
+
+  .items-center {
+    align-items: center;
+  }
+
+  .justify-between {
+    justify-content: space-between;
+  }
+
+  .justify-center {
+    justify-content: center;
+  }
+
+  .gap-1 {
+    gap: 0.25rem;
+  }
+
+  .gap-3 {
+    gap: 0.75rem;
+  }
+
+  .gap-8 {
+    gap: 2rem;
+  }
+
+  /* Spacing */
+  .p-6 {
+    padding: 1.5rem;
+  }
+
+  .p-8 {
+    padding: 2rem;
+  }
+
+  .mb-4 {
+    margin-bottom: 1rem;
+  }
+
+  /* Sizing */
+  .min-h-screen {
+    min-height: 100vh;
+  }
+
+  .max-w-2xl {
+    max-width: 42rem;
+  }
+
+  .w-full {
+    width: 100%;
+  }
+
+  /* Typography */
+  .text-2xl {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .text-lg {
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+  }
+
+  .font-semibold {
+    font-weight: 600;
+  }
+
+  .font-medium {
+    font-weight: 500;
+  }
+
+  .text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  /* Ticker track — the one persistent motion in the interface,
+     shared by the live event feed on the flow-view home page */
+  .ticker-track {
+    display: inline-flex;
+    animation: ticker 24s linear infinite;
+  }
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+}
