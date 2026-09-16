@@ -1,0 +1,118 @@
+"use client";
+
+import { AgentIdentityHeader } from "./agent-identity-header";
+import { SpendDial } from "./spend-dial";
+import { PolicyEditor } from "./policy-editor";
+import { DataTable } from "@/components/shared";
+import type { Column } from "@/components/shared";
+import { StatusBadge } from "@/components/shared";
+import { formatUsdc, shortenAddress } from "@/lib/format";
+
+interface PaymentRow {
+  id: number;
+  agent: string;
+  counterparty: string;
+  amount: string;
+  decision: string;
+  timestamp: string;
+  txHash?: string | null;
+}
+
+const paymentColumns: Column<PaymentRow>[] = [
+  {
+    key: "decision",
+    header: "Decision",
+    render: (p) => <StatusBadge decision={p.decision} />,
+  },
+  {
+    key: "counterparty",
+    header: "Counterparty",
+    render: (p) => (
+      <span className="data-mono text-xs">{shortenAddress(p.counterparty)}</span>
+    ),
+  },
+  {
+    key: "amount",
+    header: "Amount",
+    className: "w-28",
+    render: (p) => (
+      <span className="data-mono text-xs">{formatUsdc(p.amount)}</span>
+    ),
+  },
+  {
+    key: "timestamp",
+    header: "Time",
+    className: "w-24",
+    render: (p) => (
+      <span className="text-xs text-foreground-muted">
+        {new Date(p.timestamp).toLocaleTimeString()}
+      </span>
+    ),
+  },
+];
+
+interface AgentPassportProps {
+  agent: {
+    address: string;
+    label: string | null;
+    dailyCap: string;
+    perTxCap: string;
+    spentToday: string;
+    policyExists?: boolean;
+    escalationThreshold?: string;
+  };
+  recentPayments: PaymentRow[];
+  onPolicySubmit: (input: {
+    agent: string;
+    dailyCap: bigint;
+    perTxCap: bigint;
+    escalationThreshold: bigint;
+  }) => void;
+  policySubmitting?: boolean;
+}
+
+export function AgentPassport({
+  agent,
+  recentPayments,
+  onPolicySubmit,
+  policySubmitting,
+}: AgentPassportProps) {
+  return (
+    <div className="space-y-6">
+      <AgentIdentityHeader agent={agent} />
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div className="surface flex flex-col items-center p-6">
+          <SpendDial
+            spent={BigInt(agent.spentToday || "0")}
+            cap={BigInt(agent.dailyCap || "0")}
+          />
+        </div>
+
+        <div className="surface p-6">
+          <h3 className="mb-3 text-xs font-medium text-foreground-secondary">Policy</h3>
+          <PolicyEditor
+            agent={agent}
+            onSubmit={onPolicySubmit}
+            submitting={policySubmitting}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h3 className="text-xs font-medium text-foreground-secondary">Recent activity</h3>
+        {recentPayments.length === 0 ? (
+          <div className="surface p-6 text-center text-xs text-foreground-muted">
+            No recent payments.
+          </div>
+        ) : (
+          <DataTable
+            columns={paymentColumns}
+            data={recentPayments}
+            keyExtractor={(p) => String(p.id)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

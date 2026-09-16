@@ -4,6 +4,7 @@ import { createContext, useCallback, useState, useEffect } from "react";
 import type { ReactNode } from "react";
 import { useAuth as useClerkAuth, useUser } from "@clerk/nextjs";
 import { validateAuthConfig } from "@/lib/auth-config";
+import { markApiKeySession, clearApiKeySession } from "@/lib/api-key-session";
 
 export interface User {
   id: string;
@@ -75,6 +76,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { isSignedIn: clerkSignedIn, getToken: getClerkToken } = useClerkAuth();
   const { user: clerkUser, isLoaded: clerkLoaded } = useUser();
 
+  // Middleware-visible session hint for API-key logins. While an API key is
+  // held, keep the cookie present — including on first mount of a restored
+  // localStorage session, where the browser may have dropped the cookie
+  // while localStorage survived (without this refresh, that mismatch would
+  // bounce /dashboard → /sign-in → /dashboard in a loop).
+  useEffect(() => {
+    if (apiKeyState.token) markApiKeySession();
+  }, [apiKeyState.token]);
+
   // Derive the current user from Clerk or API key
   const user: User | null = (() => {
     // Clerk user takes precedence when signed in
@@ -94,9 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Clear API key state when Clerk signs in
   useEffect(() => {
     if (clerkSignedIn && apiKeyState.token) {
-      // Clear API key state when user signs in with Clerk
+      // Clear API key state when user signs in with Clerk — including the
+      // middleware hint, so the cookie never outlives the credentials it
+      // hints at.
       localStorage.removeItem(API_KEY_KEY);
       localStorage.removeItem(USER_KEY);
+      clearApiKeySession();
       setApiKeyState({ token: null, user: null, isLoading: false });
     }
   }, [clerkSignedIn]);
@@ -129,6 +142,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.setItem(API_KEY_KEY, apiKey);
       localStorage.setItem(USER_KEY, JSON.stringify(newUser));
+      // The redirect to /dashboard goes through the middleware, which cannot
+      // see localStorage — drop the hint cookie BEFORE navigating, or the
+      // middleware bounces the login straight back to /sign-in.
+      markApiKeySession();
       setApiKeyState({ token: apiKey, user: newUser, isLoading: false });
       return { ok: true, user: newUser };
     } catch (error) {
@@ -140,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(() => {
     localStorage.removeItem(API_KEY_KEY);
     localStorage.removeItem(USER_KEY);
+    clearApiKeySession();
     setApiKeyState({ token: null, user: null, isLoading: false });
     // Note: Clerk sign-out is handled by the layout component
   }, []);

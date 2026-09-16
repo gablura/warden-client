@@ -1,12 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { useAuth } from "@/features/auth/useAuth";
+import { useWardenClient } from "@/features/auth/useWardenClient";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LiveIndicator } from "@/components/shared";
 
-const SIDEBAR_LINKS = [
+const NAV_LINKS = [
   { href: "/dashboard", label: "Overview", icon: "grid" },
   { href: "/dashboard/agents", label: "Agents", icon: "cpu" },
   { href: "/dashboard/approvals", label: "Approvals", icon: "check-circle" },
@@ -29,6 +32,55 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user: clerkUser } = useUser();
   const { signOut: clerkSignOut } = useClerk();
   const { user, signOut: apiKeySignOut } = useAuth();
+  const api = useWardenClient();
+
+  const [connected, setConnected] = useState(false);
+
+  // Resolve current org (reserved for future org switcher)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await api.getMe();
+        if (cancelled) return;
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [api]);
+
+  // Track WebSocket connection state
+  useEffect(() => {
+    const url = process.env.NEXT_PUBLIC_API_URL;
+    if (!url) return;
+    const wsUrl = url.replace(/^http/, "ws");
+    let socket: WebSocket | null = null;
+    let cancelled = false;
+
+    async function connect() {
+      try {
+        const { ticket } = await api.wsTicket();
+        if (cancelled) return;
+        socket = new WebSocket(`${wsUrl}/ws?ticket=${encodeURIComponent(ticket)}`);
+        socket.onopen = () => {
+          if (!cancelled) setConnected(true);
+          socket?.send(JSON.stringify({ type: "subscribe", agents: ["*"] }));
+        };
+        socket.onclose = () => {
+          if (!cancelled) setConnected(false);
+        };
+      } catch {
+        if (!cancelled) setConnected(false);
+      }
+    }
+
+    connect();
+    return () => {
+      cancelled = true;
+      socket?.close();
+    };
+  }, [api]);
 
   const displayName = clerkUser?.emailAddresses[0]?.emailAddress
     ?? user?.email
@@ -41,14 +93,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleSignOut = async () => {
     try {
-      if (clerkUser) {
-        await clerkSignOut();
-      }
+      if (clerkUser) await clerkSignOut();
       apiKeySignOut();
       router.push("/sign-in");
-    } catch (error) {
-      console.error("Sign out error:", error);
-      // Force redirect even if sign out fails
+    } catch {
       apiKeySignOut();
       router.push("/sign-in");
     }
@@ -56,7 +104,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Sidebar */}
+      {/* Desktop sidebar */}
       <aside className="hidden w-56 flex-col border-r border-border bg-surface lg:flex">
         {/* Logo */}
         <div className="flex h-14 items-center gap-2.5 border-b border-border px-4">
@@ -71,7 +119,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Nav links */}
         <nav className="flex-1 space-y-0.5 px-2 py-3">
-          {SIDEBAR_LINKS.map((link) => (
+          {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}
@@ -116,8 +164,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Mobile header */}
+      {/* Mobile + desktop content area */}
       <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Topbar - always visible on mobile, hidden on desktop where sidebar owns it */}
         <header className="flex h-14 items-center justify-between border-b border-border bg-surface px-4 lg:hidden">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="relative flex h-7 w-7 items-center justify-center rounded-md border border-border-strong bg-surface text-xs font-bold text-foreground">
@@ -127,6 +176,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="text-sm font-semibold text-foreground">Warden</span>
           </Link>
           <div className="flex items-center gap-2">
+            <LiveIndicator connected={connected} />
             {avatarUrl ? (
               <img src={avatarUrl} alt="" className="h-6 w-6 rounded-full border border-border" />
             ) : (
@@ -140,9 +190,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        {/* Mobile nav bar */}
+        {/* Mobile bottom nav bar */}
         <nav className="flex border-t border-border bg-surface px-2 py-1.5 lg:hidden">
-          {SIDEBAR_LINKS.map((link) => (
+          {NAV_LINKS.map((link) => (
             <a
               key={link.href}
               href={link.href}

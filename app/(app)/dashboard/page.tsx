@@ -2,35 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/features/auth/useAuth";
 import { useWardenClient } from "@/features/auth/useWardenClient";
 import { OrgSelector } from "@/features/org/OrgSelector";
-import { useLiveFeed } from "@/features/flow-view/hooks/useLiveFeed";
+import { FlowView } from "@/features/flow-view/components/FlowView";
 import type { WardenOrg, AgentView, AuditEvent, ApprovalItem } from "@/lib/warden-api";
-import type { FlowTone } from "@/features/flow-view/types";
+import type { AgentSummary, FeedEvent } from "@/features/flow-view/types";
 
 function shortAddress(addr: string): string {
   return addr.length > 13 ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : addr;
-}
-
-/// Amounts travel as stringified BigInt in base USDC units (6 decimals).
-/// BigInt() function form (not literals) — the client targets pre-ES2020.
-function formatUsdc(base: string): string {
-  try {
-    const v = BigInt(base || "0");
-    const whole = v / BigInt(1000000);
-    const frac = (v % BigInt(1000000)).toString().padStart(6, "0").slice(0, 2);
-    return `${whole}.${frac} USDC`;
-  } catch {
-    return base;
-  }
-}
-
-function decisionTone(decision: string): FlowTone {
-  if (decision === "approved") return "success";
-  if (decision === "escalated") return "warning";
-  if (decision.startsWith("blocked")) return "danger";
-  return "neutral";
 }
 
 export default function DashboardPage() {
@@ -55,7 +36,7 @@ export default function DashboardPage() {
     setLoading(false);
   };
 
-  // Initial profile + org bootstrap (unchanged behavior).
+  // Initial profile + org bootstrap.
   useEffect(() => {
     if (!isAuthenticated || isLoading || org) return;
     let cancelled = false;
@@ -81,8 +62,7 @@ export default function DashboardPage() {
     };
   }, [isAuthenticated, isLoading, org, api]);
 
-  // Seed the dashboard from the org-scoped REST surfaces. The live feed
-  // (below) layers real-time updates on top of this snapshot.
+  // Seed the dashboard from the org-scoped REST surfaces.
   useEffect(() => {
     if (!isAuthenticated || isLoading || !org) return;
     let cancelled = false;
@@ -108,29 +88,23 @@ export default function DashboardPage() {
     };
   }, [isAuthenticated, isLoading, org, api]);
 
-  // The live feed: seeded from the snapshot above, updated in real time by
-  // the deployment-scoped /ws connection (ticket-authenticated per connect).
-  const feed = useLiveFeed(
-    {
-      agents: agents.map((a) => ({
-        address: a.address,
-        label: a.label,
-        dailyCap: a.dailyCap,
-        perTxCap: a.perTxCap,
-        spentToday: a.spentToday,
-        status: a.status,
-      })),
-      events: audit.map((e) => ({
-        agent: e.agent,
-        counterparty: e.counterparty,
-        amount: e.amount,
-        decision: e.decision,
-        timestamp: e.timestamp,
-      })),
-      pendingCount: pending.length,
-    },
-    api,
-  );
+  // Map API data to FlowView types.
+  const initialAgents: AgentSummary[] = agents.map((a) => ({
+    address: a.address,
+    label: a.label,
+    dailyCap: a.dailyCap,
+    perTxCap: a.perTxCap,
+    spentToday: a.spentToday,
+    status: a.status,
+  }));
+
+  const initialEvents: FeedEvent[] = audit.map((e) => ({
+    agent: e.agent,
+    counterparty: e.counterparty,
+    amount: e.amount,
+    decision: e.decision,
+    timestamp: e.timestamp,
+  }));
 
   if (isLoading || loading) {
     return (
@@ -173,95 +147,30 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Flow visualization: SVG graph + ticker + dials, all live-updated */}
+      <FlowView
+        initialAgents={initialAgents}
+        initialEvents={initialEvents}
+        initialPendingCount={pending.length}
+      />
+
+      {/* Summary cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="surface p-4">
+        <Link href="/dashboard/agents" className="surface block p-4 transition-colors hover:bg-surface-raised">
           <div className="text-xs font-medium text-foreground-secondary">Agents</div>
-          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{feed.agents.length}</div>
-          <a href="/dashboard/agents" className="link mt-2 block text-xs">
-            View all
-          </a>
-        </div>
-        <div className="surface p-4">
+          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{agents.length}</div>
+          <span className="link mt-2 block text-xs">View all</span>
+        </Link>
+        <Link href="/dashboard/approvals" className="surface block p-4 transition-colors hover:bg-surface-raised">
           <div className="text-xs font-medium text-foreground-secondary">Pending Approvals</div>
-          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{feed.pendingCount}</div>
-          <a href="/dashboard/approvals" className="link mt-2 block text-xs">
-            Review queue
-          </a>
-        </div>
-        <div className="surface p-4">
+          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{pending.length}</div>
+          <span className="link mt-2 block text-xs">Review queue</span>
+        </Link>
+        <Link href="/dashboard/audit" className="surface block p-4 transition-colors hover:bg-surface-raised">
           <div className="text-xs font-medium text-foreground-secondary">Recent Events</div>
-          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{feed.events.length}</div>
-          <a href="/dashboard/audit" className="link mt-2 block text-xs">
-            View log
-          </a>
-        </div>
-      </div>
-
-      <div className="surface p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-foreground">Live Activity</h2>
-          <span className="text-xs text-foreground-muted" title="Updates arrive over the scoped WebSocket feed">
-            live
-          </span>
-        </div>
-        {feed.events.length === 0 ? (
-          <p className="mt-4 text-xs text-foreground-muted">No activity yet.</p>
-        ) : (
-          <ul className="mt-4 divide-y divide-border">
-            {feed.events.slice(0, 8).map((event, i) => (
-              <li key={`${event.timestamp}-${i}`} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="status-badge shrink-0" data-status={decisionTone(event.decision)}>
-                    {event.decision}
-                  </span>
-                  <span className="data-mono truncate text-xs text-foreground">{shortAddress(event.agent)}</span>
-                  <span className="hidden truncate text-xs text-foreground-muted sm:inline">
-                    → {shortAddress(event.counterparty)}
-                  </span>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="data-mono text-xs text-foreground">{formatUsdc(event.amount)}</span>
-                  <span className="text-xs text-foreground-muted">
-                    {new Date(event.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="surface p-6">
-        <h2 className="text-sm font-semibold text-foreground">Quick Start</h2>
-        <div className="mt-4 space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-xs text-foreground-muted">
-              1
-            </div>
-            <div>
-              <div className="text-sm font-medium text-foreground">Register your first agent</div>
-              <div className="text-xs text-foreground-secondary">Use setPolicy on-chain to register an agent address</div>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-xs text-foreground-muted">
-              2
-            </div>
-            <div>
-              <div className="text-sm font-medium text-foreground">Configure spend limits</div>
-              <div className="text-xs text-foreground-secondary">Set per-agent and per-policy spending caps</div>
-            </div>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-xs text-foreground-muted">
-              3
-            </div>
-            <div>
-              <div className="text-sm font-medium text-foreground">Invite approvers</div>
-              <div className="text-xs text-foreground-secondary">Add team members who can sign transactions</div>
-            </div>
-          </div>
-        </div>
+          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{audit.length}</div>
+          <span className="link mt-2 block text-xs">View log</span>
+        </Link>
       </div>
     </div>
   );

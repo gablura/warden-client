@@ -220,9 +220,40 @@ export function createWardenClient(opts: ClientOpts) {
     listAgents(orgId: string): Promise<AgentsResponse> {
       return request<AgentsResponse>(withOrg("/agents?limit=50", orgId), {}, orgId);
     },
+    getAgent(address: string): Promise<{ agent: AgentView; recentPayments: { data: AuditEvent[]; hasMore: boolean; nextCursor: string | null } }> {
+      return request(`/agents/${encodeURIComponent(address)}`);
+    },
+    setPolicy(input: { agent: string; dailyCap: bigint; perTxCap: bigint; escalationThreshold: bigint }): Promise<DecisionResult> {
+      return request<DecisionResult>("/policies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agent: input.agent, dailyCap: input.dailyCap.toString(), perTxCap: input.perTxCap.toString(), escalationThreshold: input.escalationThreshold.toString() }),
+      });
+    },
+    setAllowlist(input: { agent: string; counterparty: string; allowed: boolean }): Promise<DecisionResult> {
+      return request<DecisionResult>("/policies/allowlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+    },
     /** Recent payment-lifecycle events (org-scoped audit trail, newest first). */
     listAudit(orgId: string, limit = 15): Promise<AuditEvent[]> {
       return request<{ data: AuditEvent[] }>(withOrg(`/audit?limit=${limit}`, orgId), {}, orgId).then((r) => r.data);
+    },
+    /** Cursor-paginated audit events for the audit explorer. */
+    listAuditPage(orgId: string, opts: { limit?: number; cursor?: string; agent?: string; from?: string; to?: string } = {}): Promise<{ data: AuditEvent[]; hasMore: boolean; nextCursor: string | null }> {
+      const params = new URLSearchParams();
+      params.set("limit", String(opts.limit ?? 25));
+      if (opts.cursor) params.set("cursor", opts.cursor);
+      if (opts.agent) params.set("agent", opts.agent);
+      if (opts.from) params.set("from", opts.from);
+      if (opts.to) params.set("to", opts.to);
+      return request(withOrg(`/audit?${params.toString()}`, orgId), {}, orgId);
+    },
+    /** System status — indexer lag, near-cap agents. */
+    getStatus(): Promise<{ ok: boolean; chainHead: string; indexers: Array<{ name: string; lastBlock: string | null; lag: number | null }>; agents: { total: number; nearCap: number; nearCapList: Array<{ address: string; label: string | null; status: string; spentToday: string; activeReserved: string; dailyCap: string; spentPct: number; nearCap: boolean }> } }> {
+      return request("/status");
     },
   };
 }

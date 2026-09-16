@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentSummary, FeedEvent, LiveMessage } from "../types";
-import type { WardenClient } from "@/lib/warden-api";
 
 interface LiveFeedState {
   agents: AgentSummary[];
@@ -65,13 +64,13 @@ function applyLiveMessage(prev: LiveFeedState, message: LiveMessage): LiveFeedSt
  * A fresh ticket is fetched on every connect, because reconnects happen
  * after the previous ticket/connection is long gone.
  */
-export function useLiveFeed(initial: LiveFeedState, api: WardenClient): LiveFeedState {
+export function useLiveFeed(initial: LiveFeedState): LiveFeedState {
   const [state, setState] = useState(initial);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-    if (!apiUrl) return; // Server URL not configured — no live feed.
+    if (!apiUrl) return;
 
     const wsBase = `${apiUrl.replace(/^http/, "ws")}/ws`;
     let cancelled = false;
@@ -81,9 +80,13 @@ export function useLiveFeed(initial: LiveFeedState, api: WardenClient): LiveFeed
       (async () => {
         let url = wsBase;
         try {
-          const { ticket } = await api.wsTicket();
-          if (cancelled) return;
-          url = `${wsBase}?ticket=${encodeURIComponent(ticket)}`;
+          // Fetch ticket from the API — requires auth headers from the session.
+          const res = await fetch(`${apiUrl}/auth/ws-ticket`, { credentials: "include" });
+          if (res.ok) {
+            const { ticket } = await res.json();
+            if (cancelled) return;
+            url = `${wsBase}?ticket=${encodeURIComponent(ticket)}`;
+          }
         } catch {
           // No ticket available (signed out, or the server is unreachable).
           // Still attempt the connection: on testnet it succeeds anonymously;
@@ -95,10 +98,6 @@ export function useLiveFeed(initial: LiveFeedState, api: WardenClient): LiveFeed
         const socket = new WebSocket(url);
         socketRef.current = socket;
 
-        // Subscribe on EVERY open — a reconnect creates a fresh socket with
-        // an empty subscription set, so the subscribe must be re-sent. "*"
-        // means the scope's whole feed; the server never delivers events
-        // from other deployments regardless of this subscription.
         socket.onopen = () => {
           socket.send(JSON.stringify({ type: "subscribe", agents: ["*"] }));
         };
@@ -108,8 +107,6 @@ export function useLiveFeed(initial: LiveFeedState, api: WardenClient): LiveFeed
           setState((prev) => applyLiveMessage(prev, message));
         };
 
-        // A dashboard left open for hours shouldn't silently go stale on
-        // one dropped connection.
         socket.onclose = () => {
           if (!cancelled) reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS);
         };
@@ -122,7 +119,7 @@ export function useLiveFeed(initial: LiveFeedState, api: WardenClient): LiveFeed
       if (reconnectTimer) clearTimeout(reconnectTimer);
       socketRef.current?.close();
     };
-  }, [api]);
+  }, []);
 
   return state;
 }

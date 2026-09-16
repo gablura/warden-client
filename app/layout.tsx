@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { ClerkProvider } from "@/components/clerk-provider";
 import { AuthProvider } from "@/features/auth/AuthProvider";
+import { QueryProvider } from "@/components/query-provider";
 import "./globals.css";
 
 const ibmPlexSans = IBM_Plex_Sans({
@@ -100,7 +101,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col">
         <ClerkProvider>
           <AuthProvider>
-            {children}
+            <QueryProvider>
+              {children}
+            </QueryProvider>
           </AuthProvider>
         </ClerkProvider>
       </body>
