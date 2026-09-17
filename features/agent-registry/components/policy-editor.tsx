@@ -40,14 +40,24 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const perTx = toBaseUnits(perTxCap);
+    const daily = toBaseUnits(dailyCap);
+    if (perTx > daily || toBaseUnits(escThreshold) > perTx) return;
     onSubmit({
       agent: agent.address,
-      dailyCap: toBaseUnits(dailyCap),
-      perTxCap: toBaseUnits(perTxCap),
+      dailyCap: daily,
+      perTxCap: perTx,
       escalationThreshold: toBaseUnits(escThreshold),
     });
     setDirty(false);
   };
+
+  const perTx = toBaseUnits(perTxCap);
+  const daily = toBaseUnits(dailyCap);
+  const esc = toBaseUnits(escThreshold);
+  const validationError =
+    perTx > daily ? "Per-tx cap must be ≤ daily cap" :
+    esc > perTx ? "Escalation threshold must be ≤ per-tx cap" : null;
 
   return (
     <RoleGate
@@ -103,10 +113,13 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
             className="input h-9 w-full text-xs"
           />
         </div>
+        {dirty && validationError && (
+          <p className="text-xs text-red-500">{validationError}</p>
+        )}
         {dirty && (
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !!validationError}
             className="btn btn-primary h-9 w-full text-xs"
           >
             {submitting ? "Submitting on-chain..." : "Update policy"}

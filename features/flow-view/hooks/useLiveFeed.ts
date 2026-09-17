@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useWardenClient } from "@/features/auth/useWardenClient";
 import type { AgentSummary, FeedEvent, LiveMessage } from "../types";
 
 interface LiveFeedState {
@@ -67,6 +68,7 @@ function applyLiveMessage(prev: LiveFeedState, message: LiveMessage): LiveFeedSt
 export function useLiveFeed(initial: LiveFeedState): LiveFeedState {
   const [state, setState] = useState(initial);
   const socketRef = useRef<WebSocket | null>(null);
+  const api = useWardenClient();
 
   useEffect(() => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
@@ -80,13 +82,9 @@ export function useLiveFeed(initial: LiveFeedState): LiveFeedState {
       (async () => {
         let url = wsBase;
         try {
-          // Fetch ticket from the API — requires auth headers from the session.
-          const res = await fetch(`${apiUrl}/auth/ws-ticket`, { credentials: "include" });
-          if (res.ok) {
-            const { ticket } = await res.json();
-            if (cancelled) return;
-            url = `${wsBase}?ticket=${encodeURIComponent(ticket)}`;
-          }
+          const { ticket } = await api.wsTicket();
+          if (cancelled) return;
+          url = `${wsBase}?ticket=${encodeURIComponent(ticket)}`;
         } catch {
           // No ticket available (signed out, or the server is unreachable).
           // Still attempt the connection: on testnet it succeeds anonymously;
@@ -119,7 +117,7 @@ export function useLiveFeed(initial: LiveFeedState): LiveFeedState {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       socketRef.current?.close();
     };
-  }, []);
+  }, [api]);
 
   return state;
 }

@@ -179,6 +179,9 @@ export function createWardenClient(opts: ClientOpts) {
     getMe(): Promise<MeProfile> {
       return request<MeProfile>("/auth/me");
     },
+    retryWallet(): Promise<{ walletAddress: string | null; walletId: string | null; status: string }> {
+      return request("/auth/me/wallet", { method: "POST" });
+    },
     async listOrgs(): Promise<WardenOrg[]> {
       const res = await request<{ data: WardenOrg[] }>("/auth/orgs");
       return res.data;
@@ -219,6 +222,18 @@ export function createWardenClient(opts: ClientOpts) {
     },
     listAgents(orgId: string): Promise<AgentsResponse> {
       return request<AgentsResponse>(withOrg("/agents?limit=50", orgId), {}, orgId);
+    },
+    createAgent(input: { orgId: string; label?: string; dailyCap: bigint; perTxCap: bigint; escalationThreshold: bigint }): Promise<{ address: string; circleWalletId: string }> {
+      return request("/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: input.label,
+          dailyCap: input.dailyCap.toString(),
+          perTxCap: input.perTxCap.toString(),
+          escalationThreshold: input.escalationThreshold.toString(),
+        }),
+      }, input.orgId);
     },
     getAgent(address: string): Promise<{ agent: AgentView; recentPayments: { data: AuditEvent[]; hasMore: boolean; nextCursor: string | null } }> {
       return request(`/agents/${encodeURIComponent(address)}`);

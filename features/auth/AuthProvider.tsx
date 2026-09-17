@@ -85,6 +85,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (apiKeyState.token) markApiKeySession();
   }, [apiKeyState.token]);
 
+  // For Clerk users, fetch the real profile from the server to get the
+  // org-specific role (not hardcoded "viewer").
+  const [clerkProfile, setClerkProfile] = useState<{ role: string; memberships: Array<{ org: { id: string; name: string; slug: string; verified: boolean }; role: string }> } | null>(null);
+
+  useEffect(() => {
+    if (!clerkSignedIn || !clerkUser || !clerkLoaded) {
+      setClerkProfile(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const token = await getClerkToken();
+        if (!token || cancelled) return;
+        const res = await fetch(`${apiUrl}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const profile = await res.json();
+        setClerkProfile({
+          role: profile.memberships?.[0]?.role ?? "viewer",
+          memberships: profile.memberships ?? [],
+        });
+      } catch {
+        // ignore — will use default "viewer"
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [clerkSignedIn, clerkUser, clerkLoaded, getClerkToken]);
+
   // Derive the current user from Clerk or API key
   const user: User | null = (() => {
     // Clerk user takes precedence when signed in
@@ -93,8 +124,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: clerkUser.id,
         email: clerkUser.emailAddresses[0]?.emailAddress ?? "",
         label: clerkUser.firstName ?? clerkUser.emailAddresses[0]?.emailAddress?.split("@")[0],
-        role: "viewer",
+        role: clerkProfile?.role ?? "viewer",
         authMethod: "clerk",
+        memberships: clerkProfile?.memberships,
       };
     }
     // Fall back to API key user

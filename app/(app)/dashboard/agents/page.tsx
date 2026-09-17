@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/useAuth";
 import { useWardenClient } from "@/features/auth/useWardenClient";
-import { FilterBar } from "@/components/shared";
+import { FilterBar, RoleGate } from "@/components/shared";
 import { AgentTable } from "@/features/agent-registry/components/agent-table";
+import { RegisterAgentForm } from "@/features/agent-registry/components/register-agent-form";
 import { useAgentRegistryPage } from "@/features/agent-registry";
 
 export default function AgentsPage() {
@@ -13,8 +14,8 @@ export default function AgentsPage() {
   const api = useWardenClient();
   const router = useRouter();
 
-  // Resolve org from profile
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [showRegisterForm, setShowRegisterForm] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -59,12 +60,31 @@ export default function AgentsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Agents</h1>
-        <p className="mt-1 text-sm text-foreground-secondary">
-          Manage registered agent addresses and policies
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Agents</h1>
+          <p className="mt-1 text-sm text-foreground-secondary">
+            Manage registered agent addresses and policies
+          </p>
+        </div>
+        <RoleGate minRole="admin">
+          <button
+            type="button"
+            onClick={() => setShowRegisterForm(true)}
+            className="rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:bg-foreground/90"
+          >
+            Register Agent
+          </button>
+        </RoleGate>
       </div>
+
+      {showRegisterForm && (
+        <RegisterAgentForm
+          orgId={orgId}
+          onSuccess={() => setShowRegisterForm(false)}
+          onCancel={() => setShowRegisterForm(false)}
+        />
+      )}
 
       <FilterBar
         searchPlaceholder="Search agents..."
