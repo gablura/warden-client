@@ -46,6 +46,7 @@ export default function AgentsPage() {
     setSearch,
     statusFilter,
     setStatusFilter,
+    refetch,
   } = useAgentRegistryPage(orgId ?? "");
 
   if (authLoading || !orgId) {
@@ -81,7 +82,7 @@ export default function AgentsPage() {
       {showRegisterForm && (
         <RegisterAgentForm
           orgId={orgId}
-          onSuccess={() => setShowRegisterForm(false)}
+          onSuccess={() => { setShowRegisterForm(false); refetch(); }}
           onCancel={() => setShowRegisterForm(false)}
         />
       )}
