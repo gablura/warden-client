@@ -9,38 +9,44 @@ interface AgentNodeProps {
   tone: FlowTone;
 }
 
-const toneColors: Record<FlowTone, { stroke: string; fill: string; ring: string }> = {
-  success: { stroke: "var(--color-success)", fill: "var(--color-success-subtle)", ring: "var(--color-success)" },
-  warning: { stroke: "var(--color-warning)", fill: "var(--color-warning-subtle)", ring: "var(--color-warning)" },
-  danger: { stroke: "var(--color-danger)", fill: "var(--color-danger-subtle)", ring: "var(--color-danger)" },
-  neutral: { stroke: "var(--color-border-strong)", fill: "var(--color-surface)", ring: "var(--color-border-strong)" },
+const toneColors: Record<FlowTone, { stroke: string; fill: string }> = {
+  success: { stroke: "#157f5a", fill: "#e4f5ec" },
+  warning: { stroke: "#92620c", fill: "#fbf0dd" },
+  danger: { stroke: "#b23a34", fill: "#fbeae9" },
+  neutral: { stroke: "#c9cdd4", fill: "#ffffff" },
 };
 
+const darkToneColors: Record<FlowTone, { stroke: string; fill: string }> = {
+  success: { stroke: "#3fbe87", fill: "#0d2a1c" },
+  warning: { stroke: "#d99a3c", fill: "#2a2008" },
+  danger: { stroke: "#e2645d", fill: "#2a0f0e" },
+  neutral: { stroke: "#383f47", fill: "#14171b" },
+};
+
+function getColors(tone: FlowTone, isDark: boolean) {
+  return isDark ? darkToneColors[tone] : toneColors[tone];
+}
+
 export const AgentNode = memo(function AgentNode({ x, y, label, sublabel, tone }: AgentNodeProps) {
-  const colors = toneColors[tone];
+  const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+  const colors = getColors(tone, isDark);
+  const name = label || "Agent";
+  const displayName = name.length > 8 ? name.slice(0, 7) + "\u2026" : name;
+  const fg = isDark ? "#e8eaed" : "#14171c";
+  const fgSec = isDark ? "#a7adb6" : "#565c66";
 
   return (
     <g>
-      {/* Outer glow ring */}
-      <circle
-        cx={x}
-        cy={y}
-        r={28}
-        fill="none"
-        stroke={colors.ring}
-        strokeWidth={1}
-        opacity={tone === "neutral" ? 0 : 0.3}
-      />
-      {/* Node background */}
+      <circle cx={x} cy={y} r={28} fill="none" stroke={colors.stroke} strokeWidth={1}
+        opacity={tone === "neutral" ? 0 : 0.3} />
       <circle cx={x} cy={y} r={24} fill={colors.fill} stroke={colors.stroke} strokeWidth={1.5} />
-      {/* Inner ring */}
       <circle cx={x} cy={y} r={20} fill="none" stroke={colors.stroke} strokeWidth={0.5} opacity={0.3} />
-      {/* Agent label */}
-      <text x={x} y={y - 3} textAnchor="middle" className="fill-foreground text-[11px] font-medium">
-        {label}
+      <text x={x} y={y - 3} textAnchor="middle" fill={fg}
+        fontSize={11} fontWeight={500} fontFamily="var(--font-sans, sans-serif)">
+        {displayName}
       </text>
-      {/* Spend sublabel */}
-      <text x={x} y={y + 10} textAnchor="middle" className="fill-foreground-secondary text-[8px] font-mono">
+      <text x={x} y={y + 10} textAnchor="middle" fill={fgSec}
+        fontSize={8} fontFamily="var(--font-mono, monospace)">
         {sublabel}
       </text>
     </g>

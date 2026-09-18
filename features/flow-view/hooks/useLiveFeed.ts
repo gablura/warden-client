@@ -69,6 +69,18 @@ export function useLiveFeed(initial: LiveFeedState): LiveFeedState {
   const [state, setState] = useState(initial);
   const socketRef = useRef<WebSocket | null>(null);
   const api = useWardenClient();
+  const initialRef = useRef(initial);
+
+  // Sync state with initial prop when it changes (e.g. after API fetch completes).
+  useEffect(() => {
+    initialRef.current = initial;
+    setState((prev) => {
+      if (prev.agents.length === 0 && initial.agents.length > 0) {
+        return { ...prev, agents: initial.agents, pendingCount: initial.pendingCount };
+      }
+      return prev;
+    });
+  }, [initial.agents, initial.pendingCount]);
 
   useEffect(() => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;

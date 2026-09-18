@@ -1,12 +1,25 @@
-import { AgentNode } from "./AgentNode";
 import { PaymentPulse } from "./PaymentPulse";
 import type { FlowNode, FlowPulse } from "../utils";
+import type { FlowTone } from "../types";
 
 interface FlowGraphProps {
   nodes: FlowNode[];
   pulses: FlowPulse[];
   pendingCount: number;
 }
+
+const nodeFill: Record<FlowTone, string> = {
+  success: "var(--color-success-subtle)",
+  warning: "var(--color-warning-subtle)",
+  danger: "var(--color-danger-subtle)",
+  neutral: "var(--color-surface-raised)",
+};
+const nodeStroke: Record<FlowTone, string> = {
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  danger: "var(--color-danger)",
+  neutral: "var(--color-border-strong)",
+};
 
 export function FlowGraph({ nodes, pulses, pendingCount }: FlowGraphProps) {
   return (
@@ -40,21 +53,13 @@ export function FlowGraph({ nodes, pulses, pendingCount }: FlowGraphProps) {
             </feMerge>
           </filter>
 
-          {/* Subtle glow for active nodes */}
-          <filter id="node-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
         </defs>
 
         {/* Edges from agents to policy gate */}
         {nodes.map((node) => (
           <path
             key={`edge-${node.address}`}
-            d={`M${node.x},${node.y + 28} C${node.x},${(node.y + 130) / 2} ${200},110 200,135`}
+            d={`M${node.x},${node.y + 26} C${node.x},${(node.y + 130) / 2} ${200},110 200,135`}
             fill="none"
             stroke="url(#edge-gradient)"
             strokeWidth={1.5}
@@ -79,18 +84,17 @@ export function FlowGraph({ nodes, pulses, pendingCount }: FlowGraphProps) {
         </g>
 
         {/* Agent nodes */}
-        <g filter="url(#node-glow)">
-          {nodes.map((node) => (
-            <AgentNode
-              key={node.address}
-              x={node.x}
-              y={node.y}
-              label={node.label}
-              sublabel={node.sublabel}
-              tone={node.tone}
-            />
-          ))}
-        </g>
+        {nodes.map((node) => {
+          const name = node.label || "Agent";
+          const display = name.length > 8 ? name.slice(0, 7) + "\u2026" : name;
+          return (
+            <g key={node.address}>
+              <circle cx={node.x} cy={node.y} r={26} fill={nodeFill[node.tone]} stroke={nodeStroke[node.tone]} strokeWidth={1.5} />
+              <text x={node.x} y={node.y - 4} textAnchor="middle" fill="var(--color-foreground)" fontSize={11} fontWeight={500} fontFamily="var(--font-sans, sans-serif)">{display}</text>
+              <text x={node.x} y={node.y + 10} textAnchor="middle" fill="var(--color-foreground-secondary)" fontSize={8} fontFamily="var(--font-mono, monospace)">{node.sublabel}</text>
+            </g>
+          );
+        })}
 
         {/* Policy gate */}
         <g>

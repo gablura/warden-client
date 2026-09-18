@@ -7,12 +7,11 @@ import { useAuth } from "@/features/auth/useAuth";
 import { useWardenClient } from "@/features/auth/useWardenClient";
 import { OrgSelector } from "@/features/org/OrgSelector";
 import { FlowView } from "@/features/flow-view/components/FlowView";
+import { WalletCard } from "@/features/dashboard/components/WalletCard";
+import { RecentActivity } from "@/features/dashboard/components/RecentActivity";
+import { formatUsdc } from "@/lib/format";
 import type { WardenOrg, AgentView, AuditEvent, ApprovalItem } from "@/lib/warden-api";
 import type { AgentSummary, FeedEvent } from "@/features/flow-view/types";
-
-function shortAddress(addr: string): string {
-  return addr.length > 13 ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : addr;
-}
 
 export default function DashboardPage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -106,6 +105,19 @@ export default function DashboardPage() {
     timestamp: e.timestamp,
   }));
 
+  // Compute summary metrics
+  const totalDailySpend = agents.reduce((sum, a) => {
+    try {
+      return sum + BigInt(a.spentToday || "0");
+    } catch {
+      return sum;
+    }
+  }, BigInt(0));
+
+  const approvedCount = audit.filter((e) => e.decision === "approved").length;
+  const blockedCount = audit.filter((e) => e.decision.startsWith("blocked")).length;
+  const escalatedCount = audit.filter((e) => e.decision === "escalated").length;
+
   if (isLoading || loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -122,29 +134,184 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">{org.name}</h1>
           <p className="data-mono mt-1 text-xs text-foreground-muted">{org.slug}</p>
         </div>
         <div className="flex items-center gap-2">
-          {wallet?.status && (
-            <span
-              className="status-badge"
-              data-status={wallet.status === "ready" ? "approved" : "pending"}
-              title={wallet.address ?? `Wallet ${wallet.status}`}
-            >
-              {wallet.status === "ready" && wallet.address
-                ? `Wallet ${shortAddress(wallet.address)}`
-                : `Wallet ${wallet.status}`}
-            </span>
-          )}
           {org.verified && (
             <span className="status-badge" data-status="approved">
               Verified
             </span>
           )}
         </div>
+      </div>
+
+      {/* Wallet + Summary row */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Wallet card */}
+        <WalletCard
+          address={wallet?.address}
+          status={wallet?.status}
+          orgId={org.id}
+        />
+
+        {/* Agents card */}
+        <Link
+          href="/dashboard/agents"
+          className="surface group relative overflow-hidden transition-all hover:shadow-md"
+        >
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-info" />
+          <div className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-info-subtle">
+                  <svg
+                    viewBox="0 0 16 16"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="var(--color-info)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="4" y="4" width="8" height="8" rx="1" />
+                    <line x1="6" y1="2" x2="6" y2="4" />
+                    <line x1="10" y1="2" x2="10" y2="4" />
+                    <line x1="6" y1="12" x2="6" y2="14" />
+                    <line x1="10" y1="12" x2="10" y2="14" />
+                  </svg>
+                </div>
+                <span className="text-xs font-medium text-foreground-secondary">
+                  Agents
+                </span>
+              </div>
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 text-foreground-muted transition-transform group-hover:translate-x-0.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 3l5 5-5 5" />
+              </svg>
+            </div>
+            <div className="data-mono text-2xl font-semibold text-foreground">
+              {agents.length}
+            </div>
+            <div className="mt-1 text-[10px] text-foreground-muted">
+              {formatUsdc(totalDailySpend)} spent today
+            </div>
+          </div>
+        </Link>
+
+        {/* Pending Approvals card */}
+        <Link
+          href="/dashboard/approvals"
+          className="surface group relative overflow-hidden transition-all hover:shadow-md"
+        >
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-warning" />
+          <div className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="relative flex h-8 w-8 items-center justify-center rounded-md bg-warning-subtle">
+                  <svg
+                    viewBox="0 0 16 16"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="var(--color-warning)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="8" cy="8" r="6" />
+                    <polyline points="5.5 8 7 9.5 10.5 6.5" />
+                  </svg>
+                  {pending.length > 0 && (
+                    <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-warning text-[8px] font-bold text-white">
+                      {pending.length > 9 ? "9+" : pending.length}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs font-medium text-foreground-secondary">
+                  Pending
+                </span>
+              </div>
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 text-foreground-muted transition-transform group-hover:translate-x-0.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 3l5 5-5 5" />
+              </svg>
+            </div>
+            <div className="data-mono text-2xl font-semibold text-foreground">
+              {pending.length}
+            </div>
+            <div className="mt-1 text-[10px] text-foreground-muted">
+              Awaiting review
+            </div>
+          </div>
+        </Link>
+
+        {/* Events card */}
+        <Link
+          href="/dashboard/audit"
+          className="surface group relative overflow-hidden transition-all hover:shadow-md"
+        >
+          <div className="absolute inset-x-0 top-0 h-0.5 bg-success" />
+          <div className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md bg-success-subtle">
+                  <svg
+                    viewBox="0 0 16 16"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="var(--color-success)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="3" y1="4" x2="13" y2="4" />
+                    <line x1="3" y1="8" x2="13" y2="8" />
+                    <line x1="3" y1="12" x2="13" y2="12" />
+                  </svg>
+                </div>
+                <span className="text-xs font-medium text-foreground-secondary">
+                  Events
+                </span>
+              </div>
+              <svg
+                viewBox="0 0 16 16"
+                className="h-3.5 w-3.5 text-foreground-muted transition-transform group-hover:translate-x-0.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 3l5 5-5 5" />
+              </svg>
+            </div>
+            <div className="data-mono text-2xl font-semibold text-foreground">
+              {audit.length}
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-[10px] text-foreground-muted">
+              <span className="text-success">{approvedCount} approved</span>
+              <span className="text-warning">{escalatedCount} escalated</span>
+              <span className="text-danger">{blockedCount} blocked</span>
+            </div>
+          </div>
+        </Link>
       </div>
 
       {/* Flow visualization: SVG graph + ticker + dials, all live-updated */}
@@ -154,24 +321,8 @@ export default function DashboardPage() {
         initialPendingCount={pending.length}
       />
 
-      {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Link href="/dashboard/agents" className="surface block p-4 transition-colors hover:bg-surface-raised">
-          <div className="text-xs font-medium text-foreground-secondary">Agents</div>
-          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{agents.length}</div>
-          <span className="link mt-2 block text-xs">View all</span>
-        </Link>
-        <Link href="/dashboard/approvals" className="surface block p-4 transition-colors hover:bg-surface-raised">
-          <div className="text-xs font-medium text-foreground-secondary">Pending Approvals</div>
-          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{pending.length}</div>
-          <span className="link mt-2 block text-xs">Review queue</span>
-        </Link>
-        <Link href="/dashboard/audit" className="surface block p-4 transition-colors hover:bg-surface-raised">
-          <div className="text-xs font-medium text-foreground-secondary">Recent Events</div>
-          <div className="data-mono mt-2 text-2xl font-semibold text-foreground">{audit.length}</div>
-          <span className="link mt-2 block text-xs">View log</span>
-        </Link>
-      </div>
+      {/* Recent Activity feed */}
+      <RecentActivity events={audit} maxItems={5} />
     </div>
   );
 }

@@ -61,7 +61,7 @@ export function buildFlowLayout(agents: AgentSummary[], events: FeedEvent[]): { 
 
       return {
         id: `${event.agent}-${event.timestamp}-${i}`,
-        path: `M${node.x},${node.y + 24} Q${(node.x + CX) / 2},${(node.y + GATE_Y) / 2} ${CX},${GATE_Y + 10}`,
+        path: `M${node.x},${node.y + 26} Q${(node.x + CX) / 2},${(node.y + GATE_Y) / 2} ${CX},${GATE_Y + 10}`,
         tone,
       };
     })
