@@ -293,6 +293,18 @@ export function createWardenClient(opts: ClientOpts) {
         body: JSON.stringify(input),
       });
     },
+    /** Submit a payment request on behalf of an agent (signed by agent's Circle wallet). */
+    submitPayment(input: { agent: string; counterparty: string; amount: bigint }): Promise<{ requestId: string; status: "approved" | "escalated" | "blocked"; reason?: string }> {
+      return request<{ requestId: string; status: "approved" | "escalated" | "blocked"; reason?: string }>("/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agent: input.agent,
+          counterparty: input.counterparty,
+          amount: input.amount.toString(),
+        }),
+      });
+    },
     getPendingPolicy(agent: string): Promise<{ pending: PendingPolicyView | null }> {
       return request(`/policies/pending/${encodeURIComponent(agent)}`);
     },
