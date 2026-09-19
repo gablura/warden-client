@@ -3,6 +3,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWardenClient } from "@/features/auth/useWardenClient";
 import { approvalKeys } from "../constants/queryKeys";
+import { getApiErrorMessage } from "@/lib/handle-api-error";
+import { toast } from "@/features/toast/ToastProvider";
 import type { ApprovalItem } from "../types";
 
 export function useResolveApproval(orgId: string) {
@@ -30,10 +32,18 @@ export function useResolveApproval(orgId: string) {
       return { previous };
     },
 
-    onError: (_err, _vars, context) => {
+    onError: (error, vars, context) => {
       if (context?.previous) {
         qc.setQueryData(approvalKeys.queue(orgId), context.previous);
       }
+      const msg = getApiErrorMessage(error);
+      toast.error(`${vars.decision === "approve" ? "Approve" : "Reject"} failed`, { description: msg });
+    },
+
+    onSuccess: (_data, vars) => {
+      toast.success(vars.decision === "approve" ? "Approved" : "Rejected", {
+        description: `Request ${vars.requestId.slice(0, 8)}… ${vars.decision}d on-chain.`,
+      });
     },
 
     onSettled: () => {

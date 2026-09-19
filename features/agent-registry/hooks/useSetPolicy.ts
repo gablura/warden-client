@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWardenClient } from "@/features/auth/useWardenClient";
 import { agentKeys } from "../constants/queryKeys";
 import { getApiErrorMessage } from "@/lib/handle-api-error";
+import { toast } from "@/features/toast/ToastProvider";
 import type { SetPolicyInput } from "../types";
 
 export function useSetPolicy(orgId: string) {
@@ -15,13 +16,15 @@ export function useSetPolicy(orgId: string) {
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: agentKeys.list(orgId) });
       qc.invalidateQueries({ queryKey: agentKeys.detail(variables.agent) });
-      // Invalidate pending policy so the "scheduled increase" badge appears immediately
-      qc.invalidateQueries({ queryKey: ["policies", "pending", variables.agent] });
+      // Force immediate refetch of pending policy so the "scheduled increase" badge appears instantly
+      qc.refetchQueries({ queryKey: ["policies", "pending", variables.agent] });
+      toast.success("Policy updated", {
+        description: `Agent ${variables.agent.slice(0, 6)}…${variables.agent.slice(-4)} policy confirmed on-chain.`,
+      });
     },
     onError: (error) => {
       const msg = getApiErrorMessage(error);
-      // Caller decides how to surface (toast, inline error, etc.)
-      console.error("[setPolicy]", msg);
+      toast.error("Policy update failed", { description: msg });
     },
   });
 }

@@ -3,6 +3,7 @@ import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { ClerkProvider } from "@/components/clerk-provider";
 import { AuthProvider } from "@/features/auth/AuthProvider";
 import { QueryProvider } from "@/components/query-provider";
+import { ToastProvider } from "@/features/toast/ToastProvider";
 import "./globals.css";
 
 const ibmPlexSans = IBM_Plex_Sans({
@@ -102,7 +103,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ClerkProvider>
           <AuthProvider>
             <QueryProvider>
-              {children}
+              <ToastProvider>
+                {children}
+              </ToastProvider>
             </QueryProvider>
           </AuthProvider>
         </ClerkProvider>

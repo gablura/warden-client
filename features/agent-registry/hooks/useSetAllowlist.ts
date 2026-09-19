@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWardenClient } from "@/features/auth/useWardenClient";
 import { agentKeys } from "../constants/queryKeys";
 import { getApiErrorMessage } from "@/lib/handle-api-error";
+import { toast } from "@/features/toast/ToastProvider";
 import type { SetAllowlistInput } from "../types";
 
 export function useSetAllowlist(orgId: string) {
@@ -17,11 +18,13 @@ export function useSetAllowlist(orgId: string) {
       // The passport renders the allowlist from the detail query — refresh
       // it too, or a toggle would appear to do nothing until a manual reload.
       qc.invalidateQueries({ queryKey: agentKeys.detail(variables.agent) });
+      toast.success("Allowlist updated", {
+        description: `${variables.allowed ? "Allowed" : "Blocked"} ${variables.counterparty.slice(0, 6)}…${variables.counterparty.slice(-4)} for agent ${variables.agent.slice(0, 6)}…${variables.agent.slice(-4)}.`,
+      });
     },
     onError: (error) => {
       const msg = getApiErrorMessage(error);
-      // Caller decides how to surface (toast, inline error, etc.)
-      console.error("[setAllowlist]", msg);
+      toast.error("Allowlist update failed", { description: msg });
     },
   });
 }
