@@ -3,8 +3,9 @@
 import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/features/auth/useAuth";
-import { useAgentDetail, useSetPolicy } from "@/features/agent-registry/hooks";
+import { useAgentDetail, useSetPolicy, useSetAllowlist } from "@/features/agent-registry/hooks";
 import { AgentPassport } from "@/features/agent-registry/components/agent-passport";
+import { getApiErrorMessage } from "@/lib/handle-api-error";
 
 export default function AgentDetailPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
@@ -14,6 +15,7 @@ export default function AgentDetailPage() {
 
   const { data, isLoading } = useAgentDetail(address);
   const setPolicy = useSetPolicy("");
+  const setAllowlist = useSetAllowlist("");
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace("/sign-in");
@@ -54,8 +56,12 @@ export default function AgentDetailPage() {
       <AgentPassport
         agent={data.agent}
         recentPayments={data.recentPayments.data}
+        allowlist={data.allowlist}
         onPolicySubmit={(input) => setPolicy.mutate(input)}
         policySubmitting={setPolicy.isPending}
+        onAllowlistSubmit={(input) => setAllowlist.mutate(input)}
+        allowlistSubmitting={setAllowlist.isPending}
+        allowlistError={setAllowlist.isError ? getApiErrorMessage(setAllowlist.error) : null}
       />
     </div>
   );

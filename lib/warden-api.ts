@@ -73,10 +73,31 @@ export interface AgentView {
   label: string | null;
   dailyCap: string;
   perTxCap: string;
+  escalationThreshold?: string;
   spentToday: string;
+  /// Live escalation reservations and the cap headroom they leave —
+  /// chain-sourced (see policyState.ts). remainingToday is the value the
+  /// "can this agent still spend X" question should be answered with.
+  activeReserved?: string;
+  reservedUntil?: string;
+  remainingToday?: string;
   status: string;
   nearCap?: boolean;
   policyExists?: boolean;
+  policySource?: "chain";
+  blockNumber?: string;
+  /// Newest audit-trail timestamp for this agent, or null if it has never
+  /// produced an event (server-sourced from the events table).
+  lastActivityAt?: string | null;
+}
+
+/// One row of the agent's allowlist (agent → counterparty → allowed),
+/// mirrored from AllowlistUpdated events. Disallowed entries are retained
+/// so an admin can flip them back on without retyping the address.
+export interface AllowlistView {
+  agent: string;
+  counterparty: string;
+  allowed: boolean;
 }
 
 export interface AgentsResponse {
@@ -223,7 +244,7 @@ export function createWardenClient(opts: ClientOpts) {
     listAgents(orgId: string): Promise<AgentsResponse> {
       return request<AgentsResponse>(withOrg("/agents?limit=50", orgId), {}, orgId);
     },
-    createAgent(input: { orgId: string; label?: string; dailyCap: bigint; perTxCap: bigint; escalationThreshold: bigint }): Promise<{ address: string; circleWalletId: string }> {
+    createAgent(input: { orgId: string; label?: string; dailyCap: bigint; perTxCap: bigint; escalationThreshold: bigint }): Promise<{ address: string; label: string | null; dailyCap: string; perTxCap: string; escalationThreshold: string; txHash: string; signer?: string; via?: string; correlationId?: string }> {
       return request("/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -235,7 +256,7 @@ export function createWardenClient(opts: ClientOpts) {
         }),
       }, input.orgId);
     },
-    getAgent(address: string): Promise<{ agent: AgentView; recentPayments: { data: AuditEvent[]; hasMore: boolean; nextCursor: string | null } }> {
+    getAgent(address: string): Promise<{ agent: AgentView; recentPayments: { data: AuditEvent[]; hasMore: boolean; nextCursor: string | null }; allowlist: AllowlistView[] }> {
       return request(`/agents/${encodeURIComponent(address)}`);
     },
     setPolicy(input: { agent: string; dailyCap: bigint; perTxCap: bigint; escalationThreshold: bigint }): Promise<DecisionResult> {

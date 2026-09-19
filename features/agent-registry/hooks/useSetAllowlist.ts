@@ -12,11 +12,15 @@ export function useSetAllowlist(orgId: string) {
 
   return useMutation({
     mutationFn: (input: SetAllowlistInput) => api.setAllowlist(input),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: agentKeys.list(orgId) });
+      // The passport renders the allowlist from the detail query — refresh
+      // it too, or a toggle would appear to do nothing until a manual reload.
+      qc.invalidateQueries({ queryKey: agentKeys.detail(variables.agent) });
     },
     onError: (error) => {
       const msg = getApiErrorMessage(error);
+      // Caller decides how to surface (toast, inline error, etc.)
       console.error("[setAllowlist]", msg);
     },
   });

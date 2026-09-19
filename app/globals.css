@@ -202,6 +202,10 @@
     background: var(--color-danger-subtle);
     color: var(--color-danger);
   }
+  .status-badge[data-status="expired"] {
+    background: var(--color-warning-subtle);
+    color: var(--color-warning);
+  }
   .status-badge[data-status="treasury"] {
     background: var(--color-info-subtle);
     color: var(--color-info);

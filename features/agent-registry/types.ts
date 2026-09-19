@@ -15,6 +15,9 @@ export interface AgentRecord {
   policyExists: boolean;
   policySource: "chain";
   blockNumber: string;
+  /// Newest audit-trail timestamp for this agent (null when it has never
+  /// produced an event). Server-sourced from the events table.
+  lastActivityAt?: string | null;
   createdAt: string;
   updatedAt: string;
   organizationId: string | null;

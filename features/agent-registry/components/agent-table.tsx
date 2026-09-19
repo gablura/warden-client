@@ -1,8 +1,7 @@
 "use client";
 
-import { DataTable, EmptyState } from "@/components/shared";
+import { DataTable, EmptyState, RoleGate, SpendBar } from "@/components/shared";
 import type { Column } from "@/components/shared";
-import { RoleGate } from "@/components/shared";
 import Link from "next/link";
 
 /** Shape both AgentView (list API) and AgentRecord (detail API) satisfy. */
@@ -15,6 +14,7 @@ interface AgentRowData {
   status: string;
   nearCap?: boolean;
   policyExists?: boolean;
+  lastActivityAt?: string | null;
 }
 
 const columns: Column<AgentRowData>[] = [
@@ -36,16 +36,19 @@ const columns: Column<AgentRowData>[] = [
   {
     key: "status",
     header: "Status",
-    render: (a) => a.policyExists ? "Active" : "No policy",
+    render: (a) => (a.policyExists ? "Active" : "No policy"),
   },
   {
     key: "spent",
     header: "Spent / Cap",
     className: "w-40",
     render: (a) => (
-      <span className="data-mono text-xs">
-        {formatSimple(a.spentToday)} / {formatSimple(a.dailyCap)}
-      </span>
+      <div className="space-y-1">
+        <SpendBar spent={BigInt(a.spentToday || "0")} cap={BigInt(a.dailyCap || "0")} />
+        <div className="data-mono text-[10px] text-foreground-muted">
+          {formatSimple(a.spentToday)} / {formatSimple(a.dailyCap)}
+        </div>
+      </div>
     ),
   },
   {
@@ -54,6 +57,16 @@ const columns: Column<AgentRowData>[] = [
     className: "w-28",
     render: (a) => (
       <span className="data-mono text-xs">{formatSimple(a.perTxCap)}</span>
+    ),
+  },
+  {
+    key: "lastActivity",
+    header: "Last activity",
+    className: "w-32",
+    render: (a) => (
+      <span className="text-xs text-foreground-muted">
+        {a.lastActivityAt ? new Date(a.lastActivityAt).toLocaleString() : "—"}
+      </span>
     ),
   },
 ];

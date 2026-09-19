@@ -7,7 +7,7 @@ import { approvalKeys } from "../constants/queryKeys";
 export function useApprovalQueue(orgId: string) {
   const api = useWardenClient();
   return useQuery({
-    queryKey: approvalKeys.queue(),
+    queryKey: approvalKeys.queue(orgId),
     queryFn: () => api.listApprovals(orgId),
     enabled: !!orgId,
     staleTime: 1000 * 10,

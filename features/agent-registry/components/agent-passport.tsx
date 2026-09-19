@@ -3,10 +3,12 @@
 import { AgentIdentityHeader } from "./agent-identity-header";
 import { SpendDial } from "./spend-dial";
 import { PolicyEditor } from "./policy-editor";
+import { AllowlistEditor } from "./allowlist-editor";
 import { DataTable } from "@/components/shared";
 import type { Column } from "@/components/shared";
 import { StatusBadge } from "@/components/shared";
 import { formatUsdc, shortenAddress } from "@/lib/format";
+import type { AllowlistEntry } from "../types";
 
 interface PaymentRow {
   id: number;
@@ -60,8 +62,11 @@ interface AgentPassportProps {
     spentToday: string;
     policyExists?: boolean;
     escalationThreshold?: string;
+    blockNumber?: string;
   };
   recentPayments: PaymentRow[];
+  /// Indexer-mirrored allowlist rows for this agent (see GET /agents/:address).
+  allowlist?: AllowlistEntry[];
   onPolicySubmit: (input: {
     agent: string;
     dailyCap: bigint;
@@ -69,13 +74,20 @@ interface AgentPassportProps {
     escalationThreshold: bigint;
   }) => void;
   policySubmitting?: boolean;
+  onAllowlistSubmit: (input: { agent: string; counterparty: string; allowed: boolean }) => void;
+  allowlistSubmitting?: boolean;
+  allowlistError?: string | null;
 }
 
 export function AgentPassport({
   agent,
   recentPayments,
+  allowlist = [],
   onPolicySubmit,
   policySubmitting,
+  onAllowlistSubmit,
+  allowlistSubmitting,
+  allowlistError,
 }: AgentPassportProps) {
   return (
     <div className="space-y-6">
@@ -97,6 +109,17 @@ export function AgentPassport({
             submitting={policySubmitting}
           />
         </div>
+      </div>
+
+      <div className="surface p-6">
+        <h3 className="mb-3 text-xs font-medium text-foreground-secondary">Allowlist</h3>
+        <AllowlistEditor
+          agentAddress={agent.address}
+          entries={allowlist}
+          onSubmit={onAllowlistSubmit}
+          submitting={allowlistSubmitting}
+          error={allowlistError}
+        />
       </div>
 
       <div className="space-y-3">

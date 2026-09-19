@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useWardenClient } from "@/features/auth/useWardenClient";
-import { useAuth } from "@/features/auth/useAuth";
 import { formatUsdc } from "@/lib/format";
 
 interface RegisterAgentFormProps {
@@ -21,7 +20,6 @@ function parseUsdcInput(raw: string): bigint | null {
 
 export function RegisterAgentForm({ orgId, onSuccess, onCancel }: RegisterAgentFormProps) {
   const api = useWardenClient();
-  const { user } = useAuth();
 
   const [label, setLabel] = useState("");
   const [dailyCap, setDailyCap] = useState("");
@@ -29,7 +27,7 @@ export function RegisterAgentForm({ orgId, onSuccess, onCancel }: RegisterAgentF
   const [escalationThreshold, setEscalationThreshold] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ address: string } | null>(null);
+  const [success, setSuccess] = useState<{ address: string; txHash: string } | null>(null);
 
   const dailyCapBigInt = parseUsdcInput(dailyCap);
   const perTxCapBigInt = parseUsdcInput(perTxCap);
@@ -82,10 +80,12 @@ export function RegisterAgentForm({ orgId, onSuccess, onCancel }: RegisterAgentF
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-medium text-foreground">Agent Registered</h3>
             <p className="mt-1 text-xs text-foreground-secondary">
-              Wallet created at <code className="text-xs">{success.address}</code>
+              <code className="text-xs">{success.address}</code> is live on-chain
+              (tx <code className="text-xs">{success.txHash.slice(0, 10)}…</code>).
             </p>
             <p className="mt-1 text-xs text-foreground-muted">
-              Policy will be set on-chain once the agent sends its first transaction.
+              The address came from the agent&apos;s new Circle wallet and its
+              policy was set in the same flow — no separate registration step.
             </p>
           </div>
         </div>

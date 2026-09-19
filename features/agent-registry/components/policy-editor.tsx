@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RoleGate } from "@/components/shared";
+import { RoleGate, ConfirmInline } from "@/components/shared";
 
 interface PolicyEditorProps {
   agent: {
@@ -9,6 +9,8 @@ interface PolicyEditorProps {
     dailyCap: string;
     perTxCap: string;
     escalationThreshold?: string;
+    spentToday?: string;
+    blockNumber?: string;
   };
   onSubmit: (input: {
     agent: string;
@@ -43,6 +45,7 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
     const perTx = toBaseUnits(perTxCap);
     const daily = toBaseUnits(dailyCap);
     if (perTx > daily || toBaseUnits(escThreshold) > perTx) return;
+    if (!pauseIntent && spentToday !== null && daily < spentToday) return;
     onSubmit({
       agent: agent.address,
       dailyCap: daily,
@@ -55,9 +58,40 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
   const perTx = toBaseUnits(perTxCap);
   const daily = toBaseUnits(dailyCap);
   const esc = toBaseUnits(escThreshold);
+  const spentToday = agent.spentToday !== undefined ? BigInt(agent.spentToday || "0") : null;
+
+  // Pause gesture: both caps to zero (no paused flag exists on-chain —
+  // zeroed caps make every per-tx check fail). Exempt from the spentToday
+  // guard: pausing an agent that already spent today is exactly the point.
+  const pauseIntent = daily === BigInt(0) && perTx === BigInt(0);
+
   const validationError =
     perTx > daily ? "Per-tx cap must be ≤ daily cap" :
-    esc > perTx ? "Escalation threshold must be ≤ per-tx cap" : null;
+    esc > perTx ? "Escalation threshold must be ≤ per-tx cap" :
+    !pauseIntent && spentToday !== null && daily < spentToday
+      ? "New daily cap is below what this agent has already spent today — wait for the daily reset, or Pause instead"
+      : null;
+
+  const isPaused = BigInt(agent.dailyCap || "0") === BigInt(0) && BigInt(agent.perTxCap || "0") === BigInt(0);
+
+  // Pause submits through the same onSubmit the form uses — zero caps, esc
+  // 0 — so the "real transaction" path (and its confirmation UX) is shared.
+  const submitPausedPolicy = () => {
+    onSubmit({
+      agent: agent.address,
+      dailyCap: BigInt(0),
+      perTxCap: BigInt(0),
+      escalationThreshold: BigInt(0),
+    });
+    setDirty(false);
+  };
+
+  const pausedBanner = isPaused ? (
+    <div className="rounded-md bg-warning-subtle px-2.5 py-1.5 text-xs text-warning">
+      Paused — both caps are zero, so every payment attempt is blocked.
+      Restore by setting new cap values.
+    </div>
+  ) : null;
 
   return (
     <RoleGate
@@ -80,6 +114,7 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
       }
     >
       <form onSubmit={handleSubmit} className="space-y-3">
+        {pausedBanner}
         <div>
           <label className="mb-1 block text-xs text-foreground-muted">Daily cap (USDC)</label>
           <input
@@ -116,7 +151,29 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
         {dirty && validationError && (
           <p className="text-xs text-red-500">{validationError}</p>
         )}
-        {dirty && (
+        {dirty && pauseIntent && !submitting && (
+          <ConfirmInline onConfirm={submitPausedPolicy}>
+            {({ confirming, onClick }) => (
+              <button
+                type="button"
+                onClick={onClick}
+                className={`h-9 w-full text-xs ${confirming ? "btn btn-danger" : "btn"}`}
+              >
+                {confirming ? "Tap again to pause this agent" : "Pause — set both caps to 0"}
+              </button>
+            )}
+          </ConfirmInline>
+        )}
+        {dirty && pauseIntent && submitting && (
+          <button
+            type="button"
+            disabled
+            className="btn h-9 w-full text-xs"
+          >
+            Pausing...
+          </button>
+        )}
+        {dirty && !pauseIntent && (
           <button
             type="submit"
             disabled={submitting || !!validationError}
@@ -125,6 +182,10 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
             {submitting ? "Submitting on-chain..." : "Update policy"}
           </button>
         )}
+        <p className="text-[10px] text-foreground-muted">
+          Values are read live from the chain and update only once the
+          transaction confirms{agent.blockNumber ? ` — verified at block ${agent.blockNumber}` : ""}.
+        </p>
       </form>
     </RoleGate>
   );

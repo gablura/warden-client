@@ -11,7 +11,7 @@ export function useAgentRegistryPage(orgId: string) {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [sortBy, setSortBy] = useState<"spent" | "cap">("spent");
 
-  const agents = response?.data ?? [];
+  const agents = useMemo(() => response?.data ?? [], [response]);
 
   const filtered = useMemo(() => {
     let list = agents;

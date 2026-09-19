@@ -16,9 +16,9 @@ export function useResolveApproval(orgId: string) {
         : api.reject(orgId, input.requestId),
 
     onMutate: async ({ requestId, decision }) => {
-      await qc.cancelQueries({ queryKey: approvalKeys.queue() });
-      const previous = qc.getQueryData(approvalKeys.queue());
-      qc.setQueryData(approvalKeys.queue(), (old: { data: ApprovalItem[] } | undefined) => {
+      await qc.cancelQueries({ queryKey: approvalKeys.queue(orgId) });
+      const previous = qc.getQueryData(approvalKeys.queue(orgId));
+      qc.setQueryData(approvalKeys.queue(orgId), (old: { data: ApprovalItem[] } | undefined) => {
         if (!old) return old;
         return {
           ...old,
@@ -32,12 +32,12 @@ export function useResolveApproval(orgId: string) {
 
     onError: (_err, _vars, context) => {
       if (context?.previous) {
-        qc.setQueryData(approvalKeys.queue(), context.previous);
+        qc.setQueryData(approvalKeys.queue(orgId), context.previous);
       }
     },
 
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: approvalKeys.queue() });
+      qc.invalidateQueries({ queryKey: approvalKeys.queue(orgId) });
     },
   });
 }

@@ -2,7 +2,7 @@
 
 import { memo, useState } from "react";
 import { formatUsdc, shortenAddress } from "@/lib/format";
-import { ConfirmInline } from "@/components/shared";
+import { ConfirmInline, RoleGate } from "@/components/shared";
 import type { ApprovalItem } from "../types";
 
 function ageFromNow(dateStr: string): string {
@@ -60,15 +60,20 @@ function ApprovalCardInner({ item, onApprove, onReject, resolving }: ApprovalCar
         </div>
       </div>
 
-      {/* Cap-fit indicator */}
+      {/* Cap-fit indicator — wouldFitNow is the server's reservation-aware
+          read of the chain state (spend + live reservations vs. cap); the
+          card never recomputes it. remainingToday is shown as context so an
+          approver can see the actual headroom behind the verdict. */}
       {capWarning && (
         <div className="rounded-md bg-warning-subtle px-2.5 py-1.5 text-xs text-warning">
           Would exceed remaining daily cap
+          {item.remainingToday !== undefined && ` — ${formatUsdc(item.remainingToday)} left today`}
         </div>
       )}
       {wouldFit && item.policyExists && (
         <div className="rounded-md bg-success-subtle px-2.5 py-1.5 text-xs text-success">
           Fits within remaining cap
+          {item.remainingToday !== undefined && ` — ${formatUsdc(item.remainingToday)} left today`}
         </div>
       )}
       {!item.policyExists && (
@@ -77,70 +82,74 @@ function ApprovalCardInner({ item, onApprove, onReject, resolving }: ApprovalCar
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-2">
-          {/* Reject with optional reason */}
-          {showReason ? (
-            <div className="flex flex-1 gap-1">
-              <input
-                type="text"
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Reason (optional)"
-                className="input h-10 flex-1 text-xs"
-                autoFocus
-              />
+      {/* Actions — approver+ only. Viewers see the card and its readouts
+          but the action buttons never render for them at all (per the
+          dashboard spec: not disabled, absent). */}
+      <RoleGate minRole="approver">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-2">
+            {/* Reject with optional reason */}
+            {showReason ? (
+              <div className="flex flex-1 gap-1">
+                <input
+                  type="text"
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Reason (optional)"
+                  className="input h-10 flex-1 text-xs"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  disabled={working}
+                  onClick={() => {
+                    onReject(item.requestId);
+                    setShowReason(false);
+                    setRejectReason("");
+                  }}
+                  className="btn h-10 shrink-0 px-4 text-xs"
+                >
+                  {resolving === "reject" ? "..." : "Confirm"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowReason(false); setRejectReason(""); }}
+                  className="btn btn-ghost h-10 px-2 text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
                 disabled={working}
-                onClick={() => {
-                  onReject(item.requestId);
-                  setShowReason(false);
-                  setRejectReason("");
-                }}
-                className="btn h-10 shrink-0 px-4 text-xs"
+                onClick={() => setShowReason(true)}
+                className="btn h-10 px-4 text-xs"
               >
-                {resolving === "reject" ? "..." : "Confirm"}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowReason(false); setRejectReason(""); }}
-                className="btn btn-ghost h-10 px-2 text-xs"
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={working}
-              onClick={() => setShowReason(true)}
-              className="btn h-10 px-4 text-xs"
-            >
-              Reject
-            </button>
-          )}
-
-          {/* Approve with ConfirmInline */}
-          <ConfirmInline onConfirm={() => onApprove(item.requestId)}>
-            {({ confirming, onClick }) => (
-              <button
-                type="button"
-                disabled={working}
-                onClick={onClick}
-                className={`btn h-10 px-4 text-xs ${confirming ? "btn-primary" : "btn-primary"}`}
-              >
-                {resolving === "approve"
-                  ? "Approving..."
-                  : confirming
-                    ? "Tap again to confirm"
-                    : "Approve"}
+                Reject
               </button>
             )}
-          </ConfirmInline>
+
+            {/* Approve with ConfirmInline */}
+            <ConfirmInline onConfirm={() => onApprove(item.requestId)}>
+              {({ confirming, onClick }) => (
+                <button
+                  type="button"
+                  disabled={working}
+                  onClick={onClick}
+                  className={`btn h-10 px-4 text-xs ${confirming ? "btn-primary" : "btn-primary"}`}
+                >
+                  {resolving === "approve"
+                    ? "Approving..."
+                    : confirming
+                      ? "Tap again to confirm"
+                      : "Approve"}
+                </button>
+              )}
+            </ConfirmInline>
+          </div>
         </div>
-      </div>
+      </RoleGate>
     </div>
   );
 }

@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/useAuth";
 import { useWardenClient } from "@/features/auth/useWardenClient";
 import { WardenApiError } from "@/lib/warden-api";
 import { EmptyState } from "@/components/shared";
 import { ApprovalCard } from "@/features/approval-inbox/components/approval-card";
+import { useApprovalQueue } from "@/features/approval-inbox/hooks/useApprovalQueue";
+import { useResolveApproval } from "@/features/approval-inbox/hooks/useResolveApproval";
+import { useLiveApprovals } from "@/features/approval-inbox/hooks/useLiveApprovals";
+import { approvalKeys } from "@/features/approval-inbox/constants/queryKeys";
 
 function explainError(err: unknown): string {
   if (err instanceof WardenApiError) {
@@ -56,25 +60,17 @@ export default function ApprovalsPage() {
   }, [isAuthenticated, authLoading, orgId, api]);
 
   const {
-    data: queue,
+    data: serverQueue,
     isLoading: queueLoading,
     error: queueError,
-  } = useQuery({
-    queryKey: ["approvals", "queue", orgId],
-    queryFn: () => api.listApprovals(orgId!),
-    enabled: !!orgId,
-    staleTime: 10_000,
-  });
+  } = useApprovalQueue(orgId ?? "");
 
-  const resolveMutation = useMutation({
-    mutationFn: (input: { requestId: string; decision: "approve" | "reject" }) =>
-      input.decision === "approve"
-        ? api.approve(orgId!, input.requestId)
-        : api.reject(orgId!, input.requestId),
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["approvals", "queue", orgId] });
-    },
-  });
+  // Live layer: seeded from the server list, new escalations and resolutions
+  // applied over WebSocket so the queue moves without waiting for the
+  // refetch (same pattern as the flow view's useLiveFeed).
+  const queue = useLiveApprovals(serverQueue);
+
+  const resolveMutation = useResolveApproval(orgId ?? "");
 
   const items = queue?.data ?? [];
   const staleRead = queue?.staleRead ?? false;
@@ -123,7 +119,7 @@ export default function ApprovalsPage() {
           {loadError}{" "}
           <button
             type="button"
-            onClick={() => qc.invalidateQueries({ queryKey: ["approvals", "queue", orgId] })}
+            onClick={() => qc.invalidateQueries({ queryKey: approvalKeys.queue(orgId) })}
             className="link ml-2"
           >
             Retry

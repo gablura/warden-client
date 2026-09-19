@@ -43,3 +43,5 @@ next-env.d.ts
 #skill
 /skill
 .kilo
+AGENTS_APPROVALS_AUDIT_OVERVIEW.md
+CIRCLE_WALLET_SETUP_PROMPT.md
