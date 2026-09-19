@@ -11,6 +11,8 @@
 // All list endpoints unwrap the server's `{ data }` envelope so callers get
 // plain arrays.
 
+import type { AgentRecord, AgentPayment } from "@/features/agent-registry/types";
+
 export interface WardenOrg {
   id: string;
   name: string;
@@ -98,6 +100,17 @@ export interface AllowlistView {
   agent: string;
   counterparty: string;
   allowed: boolean;
+}
+
+/// A scheduled policy increase (from PolicyChangeScheduled event).
+/// The change becomes effective at `effectiveAt` (Unix timestamp).
+export interface PendingPolicyView {
+  dailyCap: string;
+  perTxCap: string;
+  escalationThreshold: string;
+  effectiveAt: string;
+  effectiveAtIso: string;
+  isReady: boolean;
 }
 
 export interface AgentsResponse {
@@ -256,7 +269,7 @@ export function createWardenClient(opts: ClientOpts) {
         }),
       }, input.orgId);
     },
-    getAgent(address: string): Promise<{ agent: AgentView; recentPayments: { data: AuditEvent[]; hasMore: boolean; nextCursor: string | null }; allowlist: AllowlistView[] }> {
+    getAgent(address: string): Promise<{ agent: AgentRecord; recentPayments: { data: AgentPayment[]; hasMore: boolean; nextCursor: string | null }; allowlist: AllowlistView[] }> {
       return request(`/agents/${encodeURIComponent(address)}`);
     },
     setPolicy(input: { agent: string; dailyCap: bigint; perTxCap: bigint; escalationThreshold: bigint }): Promise<DecisionResult> {
@@ -272,6 +285,16 @@ export function createWardenClient(opts: ClientOpts) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
+    },
+    applyPendingPolicy(input: { agent: string }): Promise<DecisionResult> {
+      return request<DecisionResult>("/policies/apply-pending", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+    },
+    getPendingPolicy(agent: string): Promise<{ pending: PendingPolicyView | null }> {
+      return request(`/policies/pending/${encodeURIComponent(agent)}`);
     },
     /** Recent payment-lifecycle events (org-scoped audit trail, newest first). */
     listAudit(orgId: string, limit = 15): Promise<AuditEvent[]> {

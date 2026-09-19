@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { RoleGate, ConfirmInline } from "@/components/shared";
+import type { PendingPolicyView } from "@/lib/warden-api";
 
 interface PolicyEditorProps {
   agent: {
@@ -12,12 +13,17 @@ interface PolicyEditorProps {
     spentToday?: string;
     blockNumber?: string;
   };
+  /// Pending policy increase (if any), from GET /policies/pending/:agent.
+  /// When present and isReady=true, shows an "Apply" button.
+  pendingPolicy?: PendingPolicyView | null;
   onSubmit: (input: {
     agent: string;
     dailyCap: bigint;
     perTxCap: bigint;
     escalationThreshold: bigint;
   }) => void;
+  onApplyPending?: (agent: string) => void;
+  applyPendingSubmitting?: boolean;
   submitting?: boolean;
 }
 
@@ -34,7 +40,27 @@ function toBaseUnits(usdc: string): bigint {
   return BigInt(Math.round(num * 1_000_000));
 }
 
-export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps) {
+function timeUntil(ts: string): string {
+  const now = Date.now();
+  const target = Number(ts) * 1000;
+  const diff = target - now;
+  if (diff <= 0) return "ready";
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+export function PolicyEditor({
+  agent,
+  pendingPolicy,
+  onSubmit,
+  onApplyPending,
+  applyPendingSubmitting,
+  submitting,
+}: PolicyEditorProps) {
   const [dailyCap, setDailyCap] = useState(() => toUsdc(agent.dailyCap));
   const [perTxCap, setPerTxCap] = useState(() => toUsdc(agent.perTxCap));
   const [escThreshold, setEscThreshold] = useState(() => toUsdc(agent.escalationThreshold ?? "0"));
@@ -93,6 +119,41 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
     </div>
   ) : null;
 
+  // Pending policy badge + Apply button
+  const pendingBanner = pendingPolicy ? (
+    <div className="rounded-md bg-info-subtle px-2.5 py-1.5 text-xs space-y-1">
+      <div className="flex items-center gap-1.5">
+        <span className="text-info">⏳ Scheduled increase</span>
+        <span className="data-mono text-foreground-muted">
+          {pendingPolicy.isReady ? "Ready to apply" : `Effective in ${timeUntil(pendingPolicy.effectiveAt)}`}
+        </span>
+      </div>
+      <div className="data-mono text-[10px] text-foreground-muted">
+        → Daily cap: {toUsdc(pendingPolicy.dailyCap)} USDC
+      </div>
+      {pendingPolicy.isReady && onApplyPending && (
+        <ConfirmInline
+          onConfirm={() => onApplyPending!(agent.address)}
+        >
+          {({ confirming, onClick }) => (
+            <button
+              type="button"
+              onClick={applyPendingSubmitting ? undefined : onClick}
+              disabled={applyPendingSubmitting}
+              className={`h-9 w-full text-xs ${applyPendingSubmitting ? "btn" : confirming ? "btn btn-primary" : "btn btn-outline"}`}
+            >
+              {applyPendingSubmitting
+                ? "Applying..."
+                : confirming
+                  ? "Tap again to apply scheduled increase"
+                  : "Apply scheduled increase"}
+            </button>
+          )}
+        </ConfirmInline>
+      )}
+    </div>
+  ) : null;
+
   return (
     <RoleGate
       minRole="admin"
@@ -115,6 +176,7 @@ export function PolicyEditor({ agent, onSubmit, submitting }: PolicyEditorProps)
     >
       <form onSubmit={handleSubmit} className="space-y-3">
         {pausedBanner}
+        {pendingBanner}
         <div>
           <label className="mb-1 block text-xs text-foreground-muted">Daily cap (USDC)</label>
           <input

@@ -9,6 +9,8 @@ import type { Column } from "@/components/shared";
 import { StatusBadge } from "@/components/shared";
 import { formatUsdc, shortenAddress } from "@/lib/format";
 import type { AllowlistEntry } from "../types";
+import type { PendingPolicyView } from "@/lib/warden-api";
+import { usePendingPolicy } from "../hooks";
 
 interface PaymentRow {
   id: number;
@@ -74,6 +76,9 @@ interface AgentPassportProps {
     escalationThreshold: bigint;
   }) => void;
   policySubmitting?: boolean;
+  /// Callback when admin clicks "Apply scheduled increase" (only shown when pendingPolicy.isReady)
+  onApplyPending?: (agentAddress: string) => void;
+  applyPendingSubmitting?: boolean;
   onAllowlistSubmit: (input: { agent: string; counterparty: string; allowed: boolean }) => void;
   allowlistSubmitting?: boolean;
   allowlistError?: string | null;
@@ -89,6 +94,9 @@ export function AgentPassport({
   allowlistSubmitting,
   allowlistError,
 }: AgentPassportProps) {
+  // Fetch pending policy for this agent
+  const { data: pendingPolicy } = usePendingPolicy(agent.address);
+
   return (
     <div className="space-y-6">
       <AgentIdentityHeader agent={agent} />
@@ -105,7 +113,9 @@ export function AgentPassport({
           <h3 className="mb-3 text-xs font-medium text-foreground-secondary">Policy</h3>
           <PolicyEditor
             agent={agent}
+            pendingPolicy={pendingPolicy ?? null}
             onSubmit={onPolicySubmit}
+            onApplyPending={(addr) => console.log("apply pending", addr)} // will be overridden by page
             submitting={policySubmitting}
           />
         </div>

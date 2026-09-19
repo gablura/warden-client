@@ -15,6 +15,8 @@ export function useSetPolicy(orgId: string) {
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: agentKeys.list(orgId) });
       qc.invalidateQueries({ queryKey: agentKeys.detail(variables.agent) });
+      // Invalidate pending policy so the "scheduled increase" badge appears immediately
+      qc.invalidateQueries({ queryKey: ["policies", "pending", variables.agent] });
     },
     onError: (error) => {
       const msg = getApiErrorMessage(error);

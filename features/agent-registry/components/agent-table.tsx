@@ -3,6 +3,7 @@
 import { DataTable, EmptyState, RoleGate, SpendBar } from "@/components/shared";
 import type { Column } from "@/components/shared";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 /** Shape both AgentView (list API) and AgentRecord (detail API) satisfy. */
 interface AgentRowData {
@@ -86,11 +87,14 @@ interface AgentTableProps {
 }
 
 export function AgentTable({ agents }: AgentTableProps) {
+  const router = useRouter();
+
   return (
     <DataTable
       columns={columns}
       data={agents}
       keyExtractor={(a) => a.address}
+      onRowClick={(agent) => router.push(`/dashboard/agents/${agent.address}`)}
       emptyState={
         <EmptyState
           message="No agents registered yet."

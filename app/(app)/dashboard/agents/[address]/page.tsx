@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/features/auth/useAuth";
-import { useAgentDetail, useSetPolicy, useSetAllowlist } from "@/features/agent-registry/hooks";
+import { useAgentDetail, useSetPolicy, useSetAllowlist, useApplyPendingPolicy } from "@/features/agent-registry/hooks";
 import { AgentPassport } from "@/features/agent-registry/components/agent-passport";
 import { getApiErrorMessage } from "@/lib/handle-api-error";
 
@@ -14,8 +14,11 @@ export default function AgentDetailPage() {
   const address = (params?.address as string) ?? "";
 
   const { data, isLoading } = useAgentDetail(address);
-  const setPolicy = useSetPolicy("");
-  const setAllowlist = useSetAllowlist("");
+  // Use the agent's organizationId for cache invalidation to match the list query key
+  const orgId = data?.agent?.organizationId ?? "";
+  const setPolicy = useSetPolicy(orgId);
+  const setAllowlist = useSetAllowlist(orgId);
+  const applyPendingPolicy = useApplyPendingPolicy(orgId);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.replace("/sign-in");
@@ -62,6 +65,8 @@ export default function AgentDetailPage() {
         onAllowlistSubmit={(input) => setAllowlist.mutate(input)}
         allowlistSubmitting={setAllowlist.isPending}
         allowlistError={setAllowlist.isError ? getApiErrorMessage(setAllowlist.error) : null}
+        onApplyPending={(addr: string) => applyPendingPolicy.mutate(addr)}
+        applyPendingSubmitting={applyPendingPolicy.isPending}
       />
     </div>
   );
